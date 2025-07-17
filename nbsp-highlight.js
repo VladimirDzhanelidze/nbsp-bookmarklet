@@ -5,7 +5,7 @@
     s.textContent='.nbsp_highlight{background:#f8d7da;padding:0 2px;border-radius:2px;}';
     document.head.appendChild(s);
   }
-
+  
   const patterns = [
     { name: "Имя Фамилия", rx: /([А-ЯЁ][а-яё]+) ([А-ЯЁ][а-яё]+)(?=[,.:;!?]|\s|$)/g, idx: 1 },
     { name: "Инициалы + фамилия (двойные)", rx: /([А-ЯЁ]\.) ([А-ЯЁ]\.) ([А-ЯЁ][а-яё]+)/g, idx: 1 },
