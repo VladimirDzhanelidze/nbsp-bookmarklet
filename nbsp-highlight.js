@@ -6,29 +6,29 @@
     document.head.appendChild(s);
   }
 
-  // Универсальные паттерны для поиска пробела между нужными группами
+  // Паттерны для поиска пробелов между нужными группами
   const patterns = [
-    // Имя Фамилия (и с запятой после фамилии)
-    { rx: /(?<=[А-ЯЁ][а-яё]+) (?=[А-ЯЁ][а-яё]+[,.!?:;]?)/g },
+    // Имя Фамилия (ищет все пары подряд в тексте)
+    { rx: /([А-ЯЁ][а-яё]+) ([А-ЯЁ][а-яё]+)(?=[,.:;!?]|\s|$)/g, idx: 1 },
     // Инициалы + фамилия
-    { rx: /(?<=[А-ЯЁ]\.) (?=[А-ЯЁ]\.)/g },
-    { rx: /(?<=[А-ЯЁ]\.) (?=[А-ЯЁ][а-яё]+)/g },
+    { rx: /([А-ЯЁ]\.) ([А-ЯЁ]\.) ([А-ЯЁ][а-яё]+)/g, idx: 1 },
+    { rx: /([А-ЯЁ]\.) ([А-ЯЁ][а-яё]+)/g, idx: 1 },
     // Число + ед. изм.
-    { rx: /(?<=\d) (?=(год(а|у|ом|ах)?|гг|кг|см|мм|м|л|с|%|шт|руб|коп|стр|дн|мин|ч|чел|тыс|млн|млрд|трлн)[,.!?:;]?)/gi },
+    { rx: /(\d+) (год(а|у|ом|ах)?|гг|кг|см|мм|м|л|с|%|шт|руб|коп|стр|дн|мин|ч|чел|тыс|млн|млрд|трлн)(?=[,.:;!?]|\s|$)/gi, idx: 1 },
     // г. + город
-    { rx: /(?<=(г\.|ул\.|просп\.|пер\.|пл\.|д\.|стр\.|оф\.|кв\.|пос\.|р-н|обл\.|край|респ\.)) (?=[А-ЯЁ][а-яё]+)/g },
+    { rx: /(г\.|ул\.|просп\.|пер\.|пл\.|д\.|стр\.|оф\.|кв\.|пос\.|р-н|обл\.|край|респ\.) ([А-ЯЁ][а-яё]+)(?=[,.:;!?]|\s|$)/g, idx: 1 },
     // "и т.д.", "и т.п.", "и др.", "и пр."
-    { rx: /(?<=и) (?=(т\.д\.|т\.п\.|др\.|пр\.))/gi },
+    { rx: /(и) (т\.д\.|т\.п\.|др\.|пр\.)(?=[,.:;!?]|\s|$)/gi, idx: 1 },
     // № + число
-    { rx: /(?<=№) (?=\d+)/g },
+    { rx: /(№) (\d+)(?=[,.:;!?]|\s|$)/g, idx: 1 },
     // Между цифрой и знаком %
-    { rx: /(?<=\d) (?=%)/g },
+    { rx: /(\d+) (%)(?=[,.:;!?]|\s|$)/g, idx: 1 },
     // Между числом и знаком градуса
-    { rx: /(?<=\d) (?=°?[CF])/gi },
+    { rx: /(\d+) (°?[CF])(?=[,.:;!?]|\s|$)/gi, idx: 1 },
     // Между датой и годом
-    { rx: /(?<=\d{4}) (?=(г\.|год))/g },
+    { rx: /(\d{4}) (г\.|год)(?=[,.:;!?]|\s|$)/g, idx: 1 },
     // Между сокращением и числом
-    { rx: /(?<=(стр\.|рис\.|табл\.|рисунке|таблице|пример|вариант|задание|вопрос)) (?=\d+)/gi },
+    { rx: /(стр\.|рис\.|табл\.|рисунке|таблице|пример|вариант|задание|вопрос) (\d+)(?=[,.:;!?]|\s|$)/gi, idx: 1 },
   ];
 
   function walk(node) {
@@ -47,28 +47,28 @@
     let parent = textNode.parentNode;
     let replaced = false;
 
-    patterns.forEach(({rx}) => {
+    for (let {rx, idx} of patterns) {
       rx.lastIndex = 0;
-      if (rx.test(text)) {
-        // Разбиваем текст по совпадениям, чтобы подсветить только пробелы
-        let parts = text.split(rx);
-        let matches = [...text.matchAll(rx)];
-        if (matches.length > 0) {
-          let frag = document.createDocumentFragment();
-          for (let i = 0; i < parts.length; i++) {
-            frag.appendChild(document.createTextNode(parts[i]));
-            if (i < parts.length - 1) {
-              let span = document.createElement('span');
-              span.className = 'nbsp_highlight';
-              span.textContent = ' ';
-              frag.appendChild(span);
-            }
-          }
-          parent.replaceChild(frag, textNode);
-          replaced = true;
-        }
+      let match, lastIndex = 0;
+      let frag = document.createDocumentFragment();
+      let found = false;
+
+      while ((match = rx.exec(text)) !== null) {
+        found = true;
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index + match[idx].length)));
+        let span = document.createElement('span');
+        span.className = 'nbsp_highlight';
+        span.textContent = ' ';
+        frag.appendChild(span);
+        lastIndex = match.index + match[0].length;
       }
-    });
+      if (found) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+        parent.replaceChild(frag, textNode);
+        replaced = true;
+        break; // После замены снова обходим новые узлы
+      }
+    }
 
     if (replaced) {
       Array.from(parent.childNodes).forEach(walk);
