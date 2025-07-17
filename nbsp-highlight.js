@@ -6,68 +6,77 @@
     document.head.appendChild(s);
   }
 
-  // Универсальные паттерны для неразрывного пробела
+  // Паттерны для поиска обычного пробела, где нужен неразрывный
   const patterns = [
     // Инициалы + фамилия: А. С. Пушкин, А.С. Пушкин
-    /([А-ЯЁ]\.) ([А-ЯЁ]\.) ([А-ЯЁ][а-яё]+)/g,
-    /([А-ЯЁ]\.) ([А-ЯЁ][а-яё]+)/g,
+    { rx: /([А-ЯЁ]\.) ([А-ЯЁ]\.) ([А-ЯЁ][а-яё]+)/g, idx: [1,2] },
+    { rx: /([А-ЯЁ]\.) ([А-ЯЁ][а-яё]+)/g, idx: [1] },
     // Имя + фамилия: Иван Иванов
-    /([А-ЯЁ][а-яё]+) ([А-ЯЁ][а-яё]+)/g,
+    { rx: /([А-ЯЁ][а-яё]+) ([А-ЯЁ][а-яё]+)/g, idx: [1] },
     // Число + ед. изм.: 5 кг, 10 см, 100 %
-    /(\d+) (год(а|у|ом|ах)?|гг|кг|см|мм|м|л|с|%|шт|руб|коп|стр|дн|мин|ч|чел|тыс|млн|млрд|трлн)/gi,
+    { rx: /(\d+) (год(а|у|ом|ах)?|гг|кг|см|мм|м|л|с|%|шт|руб|коп|стр|дн|мин|ч|чел|тыс|млн|млрд|трлн)/gi, idx: [1] },
     // г. + город: г. Москва
-    /(г\.|ул\.|просп\.|пер\.|пл\.|д\.|стр\.|оф\.|кв\.|пос\.|р-н|обл\.|край|респ\.) ([А-ЯЁ][а-яё]+)/g,
+    { rx: /(г\.|ул\.|просп\.|пер\.|пл\.|д\.|стр\.|оф\.|кв\.|пос\.|р-н|обл\.|край|респ\.) ([А-ЯЁ][а-яё]+)/g, idx: [1] },
     // "и т.д.", "и т.п.", "и др.", "и пр."
-    /(и) (т\.д\.|т\.п\.|др\.|пр\.)/gi,
+    { rx: /(и) (т\.д\.|т\.п\.|др\.|пр\.)/gi, idx: [1] },
     // № + число: № 5
-    /(№) (\d+)/g,
+    { rx: /(№) (\d+)/g, idx: [1] },
     // Между цифрой и знаком %: 100 %
-    /(\d+) (%)/g,
+    { rx: /(\d+) (%)/g, idx: [1] },
     // Между числом и знаком градуса: 20 C, 20 °C
-    /(\d+) (°?[CF])/gi,
+    { rx: /(\d+) (°?[CF])/gi, idx: [1] },
     // Между датой и годом: 2024 г.
-    /(\d{4}) (г\.|год)/g,
+    { rx: /(\d{4}) (г\.|год)/g, idx: [1] },
     // Между сокращением и числом: стр. 5, рис. 2
-    /(стр\.|рис\.|табл\.|рисунке|таблице|пример|вариант|задание|вопрос) (\d+)/gi,
+    { rx: /(стр\.|рис\.|табл\.|рисунке|таблице|пример|вариант|задание|вопрос) (\d+)/gi, idx: [1] },
   ];
 
-  function walk(n){
-    if(n.nodeType===3) check(n);
-    else if(n.nodeType===1 && !['SCRIPT','STYLE','TEXTAREA','CODE','PRE'].includes(n.nodeName)){
-      for(let c of Array.from(n.childNodes)) walk(c);
+  // Рекурсивный обход DOM
+  function walk(node) {
+    if (node.nodeType === 3) {
+      processTextNode(node);
+    } else if (
+      node.nodeType === 1 &&
+      !['SCRIPT','STYLE','TEXTAREA','CODE','PRE'].includes(node.nodeName)
+    ) {
+      // Копируем childNodes, чтобы не сломать обход при замене
+      Array.from(node.childNodes).forEach(walk);
     }
   }
 
-  function highlightAllMatches(t, regex) {
-    let text = t.nodeValue;
-    let parent = t.parentNode;
-    let match, lastIndex = 0;
-    let frag = document.createDocumentFragment();
-    regex.lastIndex = 0;
-    let found = false;
+  // Обработка текстового узла: подсвечиваем все подходящие пробелы
+  function processTextNode(textNode) {
+    let text = textNode.nodeValue;
+    let parent = textNode.parentNode;
+    let replaced = false;
 
-    while ((match = regex.exec(text)) !== null) {
-      found = true;
-      // Добавляем текст до пробела
-      frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index + match[1].length)));
-      // Подсвечиваем пробел
-      let span = document.createElement('span');
-      span.className = 'nbsp_highlight';
-      span.textContent = ' ';
-      frag.appendChild(span);
-      lastIndex = match.index + match[0].length;
-    }
-    if (found) {
-      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
-      parent.replaceChild(frag, t);
-      return true;
-    }
-    return false;
-  }
+    patterns.forEach(({rx, idx}) => {
+      rx.lastIndex = 0;
+      let match, lastIndex = 0;
+      let frag = document.createDocumentFragment();
+      let found = false;
 
-  function check(t){
-    for(let rx of patterns){
-      if (highlightAllMatches(t, rx)) return walk(t.parentNode);
+      while ((match = rx.exec(text)) !== null) {
+        found = true;
+        // До пробела
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index + match[idx[0]].length)));
+        // Подсвечиваем пробел
+        let span = document.createElement('span');
+        span.className = 'nbsp_highlight';
+        span.textContent = ' ';
+        frag.appendChild(span);
+        lastIndex = match.index + match[0].length;
+      }
+      if (found) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+        parent.replaceChild(frag, textNode);
+        replaced = true;
+      }
+    });
+
+    // Если был заменён, рекурсивно обрабатываем новые узлы
+    if (replaced) {
+      Array.from(parent.childNodes).forEach(walk);
     }
   }
 
